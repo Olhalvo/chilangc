@@ -8,9 +8,9 @@ pub struct Span {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    lexem: String,
-    kind: TokenType,
-    span: Span,
+    pub lexem: String,
+    pub kind: TokenType,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]

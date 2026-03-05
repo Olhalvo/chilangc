@@ -1,5 +1,8 @@
 pub mod errors;
 pub mod token;
+
+use std::path::MAIN_SEPARATOR;
+
 use errors::LexerError;
 use token::{Token, TokenType};
 const DEFAULT_CAPACITY: usize = 4 * 1024; //4kb(page size)
@@ -10,6 +13,7 @@ pub struct Lexer {
     start_of_token: usize,
     idx: usize,
     input: Vec<char>,
+    eof_yielded: bool,
 }
 
 impl Lexer {
@@ -20,11 +24,19 @@ impl Lexer {
             start_of_token: 0,
             idx: 0,
             input: Vec::<char>::with_capacity(DEFAULT_CAPACITY),
+            eof_yielded: false,
         }
     }
 
     pub fn load(&mut self, input: &str) {
-        self.input = input.chars().collect();
+        self.input.clear();
+        self.input.extend(input.chars());
+
+        self.idx = 0;
+        self.line = 0;
+        self.col = 0;
+        self.start_of_token = 0;
+        self.eof_yielded = false;
     }
 
     fn peek(&self) -> Option<char> {
@@ -58,9 +70,9 @@ impl Lexer {
         let mut start_idx = self.idx;
         let mut is_hex: bool = false;
 
-        if (self.peek() == Some('0')) {
+        if self.peek() == Some('0') {
             self.advance();
-            if (self.peek() == Some('x')) {
+            if self.peek() == Some('x') {
                 self.advance();
                 is_hex = true;
                 start_idx = self.idx;
@@ -146,6 +158,38 @@ impl Lexer {
         }
     }
 
+    fn read_string(&mut self) -> Result<TokenType, LexerError> {
+        let mut buffer = String::new();
+        self.advance();
+        
+        while let Some(ch) = self.peek(){
+            match ch {
+                '"' =>{
+                    self.advance();
+                    return Ok(TokenType::StringLiteral(buffer));
+                }
+                '\\' =>{
+                    self.advance();
+                    match self.peek(){
+                        Some('"') => buffer.push('"'),
+                        Some('n') => buffer.push('\n'),
+                        Some('t') => buffer.push('\t'),
+                        Some('0') => buffer.push('\0'),
+                        Some('\\') => buffer.push('\\'),
+                        _ => return Err(LexerError::InvalidEscape),
+                    }
+                    self.advance();
+                }
+                '\n' => return Err(LexerError::UnterminatedString),
+                _ => {
+                    buffer.push(ch);
+                    self.advance();
+                }
+            }
+        }
+        Err(LexerError::UnterminatedString)
+    }
+
     fn make_token(&self, kind: TokenType) -> Token {
         let lexeme: String = self.input[self.start_of_token..self.idx].iter().collect();
 
@@ -165,9 +209,7 @@ impl Lexer {
             Some(ch) if ch.is_ascii_digit() => {
                 Some(self.read_number().map(|kind| self.make_token(kind)))
             }
-            Some('"') =>{
-                Some(self.read_string().map(|kind| self.make_token(kind)))
-            }
+            Some('"') => Some(self.read_string().map(|kind| self.make_token(kind))),
             Some('+') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::Plus)))
@@ -248,6 +290,30 @@ impl Lexer {
                     Some(Ok(self.make_token(TokenType::Slash)))
                 }
             }
+            Some('&') => {
+                self.advance();
+                if self.peek() == Some('&') {
+                    self.advance();
+                    return Some(Ok(self.make_token(TokenType::And)));
+                }
+                Some(Ok(self.make_token(TokenType::BitAnd)))
+            }
+            Some('|') => {
+                self.advance();
+                if self.peek() == Some('|') {
+                    self.advance();
+                    return Some(Ok(self.make_token(TokenType::Or)));
+                }
+                Some(Ok(self.make_token(TokenType::BitOr)))
+            }
+            Some('!') => {
+                self.advance();
+                if self.peek() == Some('=') {
+                    self.advance();
+                    return Some(Ok(self.make_token(TokenType::Neq)));
+                }
+                Some(Ok(self.make_token(TokenType::Not)))
+            }
             Some('=') => {
                 self.advance();
                 if self.peek() == Some('=') {
@@ -257,20 +323,49 @@ impl Lexer {
                 }
                 Some(Ok(self.make_token(TokenType::Assign)))
             }
-            Some('&') => {
+            Some('>') => {
                 self.advance();
-                if (self.peek() == Some('&')) {
+                if self.peek() == Some('=') {
                     self.advance();
-                    return Some(Ok((self.make_token(TokenType::And))));
+                    return Some(Ok(self.make_token(TokenType::Gte)));
                 }
-                Some(Ok(self.make_token(TokenType::BitAnd)))
+                Some(Ok(self.make_token(TokenType::Gt)))
             }
-
+            Some('<') => {
+                self.advance();
+                if self.peek() == Some('=') {
+                    self.advance();
+                    return Some(Ok(self.make_token(TokenType::Lte)));
+                }
+                Some(Ok(self.make_token(TokenType::Lt)))
+            }
             Some(c) => Some(Err(LexerError::InvalidCharacter(c))),
         }
     }
 }
 
 impl Iterator for Lexer {
-    todo!("Implement ts");
+    type Item = Result<Token, LexerError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.eof_yielded {
+            return None;
+        }
+
+        loop {
+            match self.next_token() {
+                None => continue,
+
+                Some(res) => {
+                    if let Ok(token) = &res {
+                        if token.eof() {
+                            self.eof_yielded = true
+                        }
+                    }
+
+                    return Some(res);
+                }
+            }
+        }
+    }
 }
