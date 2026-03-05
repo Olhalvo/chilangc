@@ -66,7 +66,7 @@ pub enum TokenType {
     BitOr,
     BitAnd,
     BitXor,
-    At, //@ operator (dereference suffix)
+    At,   //@ operator (dereference suffix)
     Hash, //# operator (reference prefix)
     //Ponctuation
     Colon,
@@ -77,6 +77,7 @@ pub enum TokenType {
     RBrace,
     LBrack,
     RBrack,
+    Comma,
 
     EOF,
 }
@@ -173,6 +174,7 @@ impl Token {
                 | TokenType::RBrace
                 | TokenType::LBrack
                 | TokenType::RBrack
+                | TokenType::Comma
         )
     }
 

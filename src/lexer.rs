@@ -1,10 +1,8 @@
-pub mod token;
 pub mod errors;
+pub mod token;
+use errors::LexerError;
 use token::{Token, TokenType};
-use crate::lexer::errors::LexerError;
 const DEFAULT_CAPACITY: usize = 4 * 1024; //4kb(page size)
-
-
 
 pub struct Lexer {
     line: usize,
@@ -23,6 +21,10 @@ impl Lexer {
             idx: 0,
             input: Vec::<char>::with_capacity(DEFAULT_CAPACITY),
         }
+    }
+
+    pub fn load(&mut self, input: &str) {
+        self.input = input.chars().collect();
     }
 
     fn peek(&self) -> Option<char> {
@@ -52,14 +54,63 @@ impl Lexer {
         }
     }
 
-    fn read_number(&mut self) -> Result<TokenType, LexerError>{
-        let start_idx = self.idx;
-        return Err(LexerError::InvalidNumberFormat)
+    fn read_number(&mut self) -> Result<TokenType, LexerError> {
+        let mut start_idx = self.idx;
+        let mut is_hex: bool = false;
+
+        if (self.peek() == Some('0')) {
+            self.advance();
+            if (self.peek() == Some('x')) {
+                self.advance();
+                is_hex = true;
+                start_idx = self.idx;
+            }
+        }
+        while let Some(ch) = self.peek() {
+            if is_hex {
+                if ch.is_ascii_hexdigit() {
+                    self.advance();
+                } else {
+                    break;
+                }
+            } else {
+                if ch.is_ascii_digit() {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+        if self.peek() == Some('.') {
+            if (is_hex) {
+                return Err(LexerError::InvalidNumberFormat);
+            }
+            self.advance();
+            while let Some(ch) = self.peek() {
+                if ch.is_ascii_digit() {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            return Ok(TokenType::FloatLiteral(
+                self.input[start_idx..self.idx].iter().collect(),
+            ));
+        }
+        if is_hex {
+            Ok(TokenType::IntLiteralHex(
+                self.input[start_idx..self.idx].iter().collect(),
+            ))
+        } else {
+            Ok(TokenType::IntLiteralDec(
+                self.input[start_idx..self.idx].iter().collect(),
+            ))
+        }
     }
 
     fn read_identifier(&mut self) -> TokenType {
         while let Some(ch) = self.peek() {
-            if ch.is_alphanumeric() || ch == '_' {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
                 self.advance();
             } else {
                 break;
@@ -89,6 +140,8 @@ impl Lexer {
             "ptr" => TokenType::TypePtr,
             "void" => TokenType::TypeVoid,
             "bool" => TokenType::TypeBool,
+            "true" => TokenType::BooleanLiteral(true),
+            "false" => TokenType::BooleanLiteral(false),
             _ => TokenType::Identifier(lexeme),
         }
     }
@@ -99,67 +152,125 @@ impl Lexer {
         Token::new(lexeme, kind, self.line, self.col)
     }
 
-    fn next_token(&mut self) -> Option<Result<Token, LexerError>>{
+    pub fn next_token(&mut self) -> Option<Result<Token, LexerError>> {
         self.skip_whitespace();
         self.start_of_token = self.idx;
 
         match self.peek() {
-            None =>{
-                Some(Ok(self.make_token(TokenType::EOF)))
-            },
-            Some(ch) if ch.is_alphabetic() || ch=='_' =>{
+            None => Some(Ok(self.make_token(TokenType::EOF))),
+            Some(ch) if ch.is_ascii_alphabetic() || ch == '_' => {
                 let kind = self.read_identifier();
                 Some(Ok(self.make_token(kind)))
-            },
-            Some(ch) if ch.is_numeric() =>{
-                Some(self.read_number().map(|kind| self.make_token(kind))) 
             }
-            Some('+') =>{
+            Some(ch) if ch.is_ascii_digit() => {
+                Some(self.read_number().map(|kind| self.make_token(kind)))
+            }
+            Some('"') =>{
+                Some(self.read_string().map(|kind| self.make_token(kind)))
+            }
+            Some('+') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::Plus)))
-            },
-            Some('*') =>{
+            }
+            Some('*') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::Star)))
-            },
-            Some('-') =>{
+            }
+            Some('-') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::Minus)))
-            },
+            }
             Some('%') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::Mod)))
-            },
+            }
             Some('@') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::At)))
-            },
+            }
             Some('#') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::Hash)))
-            },
-            Some('~') =>{
+            }
+            Some('~') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::BitNot)))
-            },
-            Some('^') =>{
+            }
+            Some('^') => {
                 self.advance();
                 Some(Ok(self.make_token(TokenType::BitXor)))
-            },
-            Some('/') =>{
+            }
+            Some(':') => {
                 self.advance();
-                if self.peek() == Some('/') {//comment
+                Some(Ok(self.make_token(TokenType::Colon)))
+            }
+            Some(';') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::Semicolon)))
+            }
+            Some('(') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::LParen)))
+            }
+            Some(')') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::RParen)))
+            }
+            Some('[') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::LBrack)))
+            }
+            Some(']') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::RBrack)))
+            }
+            Some('{') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::LBrace)))
+            }
+            Some('}') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::RBrace)))
+            }
+            Some(',') => {
+                self.advance();
+                Some(Ok(self.make_token(TokenType::Comma)))
+            }
+            Some('/') => {
+                self.advance();
+                if self.peek() == Some('/') {
+                    //comment
                     while self.peek() != Some('\n') && self.peek() != None {
                         self.advance();
                     }
                     None
-                }else{
+                } else {
                     Some(Ok(self.make_token(TokenType::Slash)))
                 }
             }
-            Some(c) =>{
-                Some(Err(LexerError::InvalidCharacter(c)))
+            Some('=') => {
+                self.advance();
+                if self.peek() == Some('=') {
+                    //comparasion
+                    self.advance();
+                    return Some(Ok(self.make_token(TokenType::Eq)));
+                }
+                Some(Ok(self.make_token(TokenType::Assign)))
             }
+            Some('&') => {
+                self.advance();
+                if (self.peek() == Some('&')) {
+                    self.advance();
+                    return Some(Ok((self.make_token(TokenType::And))));
+                }
+                Some(Ok(self.make_token(TokenType::BitAnd)))
+            }
+
+            Some(c) => Some(Err(LexerError::InvalidCharacter(c))),
         }
     }
+}
+
+impl Iterator for Lexer {
+    todo!("Implement ts");
 }

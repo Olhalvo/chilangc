@@ -1,4 +1,5 @@
-pub enum LexerError{
+#[derive(Debug)]
+pub enum LexerError {
     InvalidCharacter(char),
     InvalidNumberFormat,
 }
