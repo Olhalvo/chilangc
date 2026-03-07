@@ -1,8 +1,6 @@
 pub mod errors;
 pub mod token;
 
-use std::path::MAIN_SEPARATOR;
-
 use errors::LexerError;
 use token::{Token, TokenType};
 const DEFAULT_CAPACITY: usize = 4 * 1024; //4kb(page size)
@@ -94,7 +92,7 @@ impl Lexer {
             }
         }
         if self.peek() == Some('.') {
-            if (is_hex) {
+            if is_hex {
                 return Err(LexerError::InvalidNumberFormat);
             }
             self.advance();
@@ -161,16 +159,16 @@ impl Lexer {
     fn read_string(&mut self) -> Result<TokenType, LexerError> {
         let mut buffer = String::new();
         self.advance();
-        
-        while let Some(ch) = self.peek(){
+
+        while let Some(ch) = self.peek() {
             match ch {
-                '"' =>{
+                '"' => {
                     self.advance();
                     return Ok(TokenType::StringLiteral(buffer));
                 }
-                '\\' =>{
+                '\\' => {
                     self.advance();
-                    match self.peek(){
+                    match self.peek() {
                         Some('"') => buffer.push('"'),
                         Some('n') => buffer.push('\n'),
                         Some('t') => buffer.push('\t'),

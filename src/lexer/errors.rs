@@ -3,5 +3,5 @@ pub enum LexerError {
     InvalidCharacter(char),
     InvalidNumberFormat,
     UnterminatedString,
-    InvalidEscape
+    InvalidEscape,
 }
