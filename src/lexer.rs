@@ -136,6 +136,8 @@ impl Lexer {
             "elif" => TokenType::Elif,
             "else" => TokenType::Else,
             "while" => TokenType::While,
+            "continue" => TokenType::Continue,
+            "break" => TokenType::Break,
             "ret" => TokenType::Ret,
             "i8" => TokenType::TypeI8,
             "u8" => TokenType::TypeU8,

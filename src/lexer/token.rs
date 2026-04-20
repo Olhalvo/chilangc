@@ -21,7 +21,10 @@ pub enum TokenType {
     Elif,
     Else,
     While,
-    Ret, //language Statements
+    Ret,
+    Continue,
+    Break,
+    //language Statements
 
     //Types
     TypeVoid,
@@ -101,6 +104,8 @@ impl Token {
                 | TokenType::Else
                 | TokenType::While
                 | TokenType::Ret
+                | TokenType::Continue
+                | TokenType::Break
         )
     }
 
