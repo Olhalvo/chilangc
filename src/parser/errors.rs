@@ -1,6 +1,9 @@
-use lexer::token::{Token};
+use crate::lexer::token::{Token};
 
 #[derive(Debug)]
 pub enum ParserError{
-    UnexpectedToken(Token)  
+    UnexpectedToken(Token),  
+    InvalidScopeError(usize),
+    SymbolAlreadyDefined(String),
+    NoSuchSymbolError(String),
 }
