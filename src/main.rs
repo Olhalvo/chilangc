@@ -27,4 +27,12 @@ fn main() {
             Err(e) => eprintln!("Lexer Error {:?}", e),
         }
     }
+    let x : Option<i64> = None;
+
+    x.and_then(
+        |x| -> Option<i64>{
+            println!("x is not None");
+            None
+        }   
+    );
 }
