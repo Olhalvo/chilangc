@@ -13,7 +13,7 @@ fn main() {
     let src = match read_source_file(&args[1]) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("error reading file: {e}");
+            eprintln!("error reading file: {:#?}", args[1]);
             return;
         }
     };
